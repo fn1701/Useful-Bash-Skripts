@@ -213,12 +213,13 @@ check_and_print() {
   # Try to extract resolved IP and TLS info
   tls_info=$(echo "$CURL_OUTPUT" | grep -oP 'SSL connection using \K.*' | head -1 || true)
   cert_status=$(get_cert_status "$CURL_OUTPUT")
-  cert_key_type=$(echo "$CURL_OUTPUT" | grep 'Certificate level' | tail -1 | cut -d ' ' -f10,11,12)
-  # Rewrite the http_version extraction logic as an if-else block
+  # Refactor cert_key_type extraction to remove trailing comma and improve readability
+  cert_key_type=$(echo "$CURL_OUTPUT" | grep 'Certificate level' | tail -1 | sed -E 's/.*Public key type\s*([^,]+),?.*/\1/')
+  cert_sign_algo=$(echo "$CURL_OUTPUT" | grep 'Certificate level' | tail -1 | sed -E 's/.*signed using\s*([^,]+).*/\1/')
   if echo "$CURL_OUTPUT" | grep -q 'using HTTP/3'; then
     http_version="3"
   else
-    http_version=$(echo "$CURL_OUTPUT" | grep -oP 'Using HTTP/\K[0-9.]+' | head -1 || true)
+    http_version=$(echo "$CURL_OUTPUT" | grep -oP 'using HTTP/\K[0-9.x]+' | head -1 || true)
   fi
   status_message=$(get_status_message "$CURL_HTTP_CODE")
   color=$(get_status_color "$CURL_HTTP_CODE")
@@ -231,12 +232,14 @@ check_and_print() {
       "$status_message" "$CURL_HTTP_CODE" "$url" "${CURL_REMOTE_IP:--}" "$cert_status"
   else
     # Verbose multi-line output similar to http-s_check.sh
-    echo -e "Resolved IPv${ip_version}:      ${CURL_REMOTE_IP:--}"
-    echo -e "TLS Info:           ${tls_info:--}"
-    echo -e "HTTP Version:      HTTP/${http_version:--}"
-    echo -e "Certificate:        ${cert_status} ${cert_key_type}"
-    echo -e "Effective URL:      ${CURL_EFFECTIVE_URL:--}"
-    echo -e "Final HTTP Code:    ${CURL_HTTP_CODE} [${color}${BOLD}${status_message}${NC}]\n"
+    printf "Resolved IPv%s:      %s\n" "${ip_version}" "${CURL_REMOTE_IP:--}"
+    printf "HTTP Version:      HTTP/%s\n" "${http_version:--}"
+    printf "TLS Info:           %s\n" "${tls_info:--}"
+    printf "Certificate:        %s\n" "${cert_status}"
+    printf "Certificate Key Type: %s\n" "${cert_key_type}"
+    printf "Certificate Signature Algorithm: %s\n" "${cert_sign_algo}"
+    printf "Effective URL:      %s\n" "${CURL_EFFECTIVE_URL:--}"
+    printf "Final HTTP Code:    %s [%s%s%s]\n\n" "${CURL_HTTP_CODE}" "${color}" "${BOLD}${status_message}" "${NC}"
   fi
 }
 
