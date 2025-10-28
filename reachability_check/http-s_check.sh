@@ -214,17 +214,19 @@ check_and_print() {
     http_version=$(echo "$CURL_OUTPUT" | grep -oP 'using HTTP/\K[0-9.x]+' | head -1 || true)
   fi
   status_message=$(get_status_message "$CURL_HTTP_CODE")
-  color=$(get_status_color "$CURL_HTTP_CODE")
+
+  http_color=$(get_status_color "$CURL_HTTP_CODE")
+  ip_color=$(./select_ip_color.sh "$ip_version")
+
 
   if [[ "$mode" = "short" ]]; then
     # Short single-line output similar to http-s_check_short.sh
     # Print: [STATUS] <code>  <url>  <resolved_ip padded> <CertStatus> Cert
     # Pad the IP column to align the certificate status column for IPv4/IPv6
-    printf "[${color}${BOLD}%s${NC}] %s  %s  %-39s %s Cert\n" \
+    printf "[${http_color}${BOLD}%s${NC}] %s  %s  ${ip_color}%-39s${NC} %s Cert" \
       "$status_message" "$CURL_HTTP_CODE" "$url" "${CURL_REMOTE_IP:--}" "$cert_status"
   else
-    # Verbose multi-line output similar to http-s_check.sh
-    printf "Resolved IPv%s:        %s\n" "${ip_version}" "${CURL_REMOTE_IP:--}"
+    printf "Resolved IPv%s:        ${ip_color}%s${NC}\n" "${ip_version}" "${CURL_REMOTE_IP:--}"
     printf "HTTP Version:         HTTP/%s\n" "${http_version:--}"
     if [[ -n "${tls_con}" ]]; then
       printf "TLS Connection:       %s\n" "${tls_con}"
@@ -232,8 +234,9 @@ check_and_print() {
     printf "Certificate:          %s\n" "${cert_status}"
     printf "Certificate Key Type: %s\n" "${cert_key_type}"
     printf "Cert Signature Algo:  %s\n" "${cert_sign_algo}"
+    printf "URL:                  %s\n" "${url}"
     printf "Effective URL:        %s\n" "${CURL_EFFECTIVE_URL:--}"
-    printf "Final HTTP Code:      %s [${color}${BOLD}%s${NC}]\n\n" "${CURL_HTTP_CODE}" "${status_message}"
+    printf "Final HTTP Code:      %s [${http_color}${BOLD}%s${NC}]\n\n" "${CURL_HTTP_CODE}" "${status_message}"
   fi
 }
 
@@ -243,10 +246,7 @@ if [[ -n "$IP_FORCED" ]]; then
 else
   # run both; IPv4 then IPv6 (same order as originals)
   check_and_print 4 "$URL" "$MODE"
-  if [[ "$MODE" = "short" ]]; then
-    # short prints one-line; print newline then run IPv6 short line
-    :
-  fi
+  echo ""
   check_and_print 6 "$URL" "$MODE"
 fi
 
