@@ -24,15 +24,6 @@ if [[ $# -lt 4 ]]; then
     exit 1
 fi
 
-# # Choose the appropriate color based on IP version
-# if [[ "$ipv" == "4" ]]; then
-#     SelectedColor="$IPv4Color"
-# elif [[ "$ipv" == "6" ]]; then
-#     SelectedColor="$IPv6Color"
-# else
-#     SelectedColor="$NC" # Fallback/default
-# fi
-# Choose the appropriate color based on IP version
 SelectedColor=$(./select_ip_color.sh "$ipv")
 
 # SSH command using the selected color
