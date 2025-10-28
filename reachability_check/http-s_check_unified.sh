@@ -135,8 +135,9 @@ check_and_print() {
 
   if [[ "$mode" = "short" ]]; then
     # Short single-line output similar to http-s_check_short.sh
-    # Print: [STATUS] <code>  <url>  <resolved_ip>  <CertStatus> Cert
-    printf "[${color}${BOLD}%s${NC}] %s  %s  %s  %s Cert\n" \
+    # Print: [STATUS] <code>  <url>  <resolved_ip padded> <CertStatus> Cert
+    # Pad the IP column to align the certificate status column for IPv4/IPv6
+    printf "[${color}${BOLD}%s${NC}] %s  %s  %-39s %s Cert\n" \
       "$status_message" "$CURL_HTTP_CODE" "$url" "${resolved_ip:--}" "$cert_status"
   else
     # Verbose multi-line output similar to http-s_check.sh
