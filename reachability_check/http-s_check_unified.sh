@@ -211,7 +211,7 @@ check_and_print() {
   fi
 
   # Try to extract resolved IP and TLS info
-  tls_info=$(echo "$CURL_OUTPUT" | grep -oP 'SSL connection using \K.*' | head -1 || true)
+  tls_con=$(echo "$CURL_OUTPUT" | grep -oP 'SSL connection using \K.*' | head -1 || true)
   cert_status=$(get_cert_status "$CURL_OUTPUT")
   # Refactor cert_key_type extraction to remove trailing comma and improve readability
   cert_key_type=$(echo "$CURL_OUTPUT" | grep 'Certificate level' | tail -1 | sed -E 's/.*Public key type\s*([^,]+),?.*/\1/')
@@ -232,14 +232,16 @@ check_and_print() {
       "$status_message" "$CURL_HTTP_CODE" "$url" "${CURL_REMOTE_IP:--}" "$cert_status"
   else
     # Verbose multi-line output similar to http-s_check.sh
-    printf "Resolved IPv%s:      %s\n" "${ip_version}" "${CURL_REMOTE_IP:--}"
-    printf "HTTP Version:      HTTP/%s\n" "${http_version:--}"
-    printf "TLS Info:           %s\n" "${tls_info:--}"
-    printf "Certificate:        %s\n" "${cert_status}"
+    printf "Resolved IPv%s: %s\n" "${ip_version}" "${CURL_REMOTE_IP:--}"
+    printf "HTTP Version:         HTTP/%s\n" "${http_version:--}"
+    if [[ -n "${tls_con}" ]]; then
+      printf "TLS Connection:       %s\n" "${tls_con}"
+    fi
+    printf "Certificate:          %s\n" "${cert_status}"
     printf "Certificate Key Type: %s\n" "${cert_key_type}"
-    printf "Certificate Signature Algorithm: %s\n" "${cert_sign_algo}"
-    printf "Effective URL:      %s\n" "${CURL_EFFECTIVE_URL:--}"
-    printf "Final HTTP Code:    %s [%s%s%s]\n\n" "${CURL_HTTP_CODE}" "${color}" "${BOLD}${status_message}" "${NC}"
+    printf "Cert Signature Algo:  %s\n" "${cert_sign_algo}"
+    printf "Effective URL:        %s\n" "${CURL_EFFECTIVE_URL:--}"
+    printf "Final HTTP Code:      %s [${color}${BOLD}%s${NC}]\n\n" "${CURL_HTTP_CODE}" "${status_message}"
   fi
 }
 
