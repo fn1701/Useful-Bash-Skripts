@@ -149,14 +149,6 @@ check_and_print() {
   fi
 }
 
-# Verify host DNS first to avoid some curl IPv6 lookup delays
-host=$(extract_host "$URL")
-if command -v timeout >/dev/null 2>&1; then
-  timeout "$TIMEOUT" nslookup "$host" &>/dev/null || true
-else
-  nslookup "$host" &>/dev/null || true
-fi
-
 if [[ -n "$IP_FORCED" ]]; then
   # force only 4 or only 6
   check_and_print "$IP_FORCED" "$URL" "$MODE"
