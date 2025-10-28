@@ -104,24 +104,16 @@ dns_lookup() {
   local ip_version="$1" host="$2"
   local lookup ips ips_found
   DNS_IPS_FOUND=""
-  if command -v getent >/dev/null 2>&1; then
-    if command -v timeout >/dev/null 2>&1; then
-      lookup=$(timeout "$TIMEOUT" getent ahosts "$host" 2>/dev/null || true)
-    else
-      lookup=$(getent ahosts "$host" 2>/dev/null || true)
-    fi
-    ips=$(printf "%s" "$lookup" | awk '{print $1}' | uniq || true)
-  else
-    if command -v timeout >/dev/null 2>&1; then
-      lookup=$(timeout "$TIMEOUT" nslookup "$host" 2>/dev/null || true)
-    else
-      lookup=$(nslookup "$host" 2>/dev/null || true)
-    fi
-    ips=$(printf "%s" "$lookup" | awk '/^Address: /{print $2}' | uniq || true)
-  fi
 
-  # On some systems `getent`/NSS may not return AAAA records even though they exist
-  # try `dig` as a fallback for the requested family when no ips were found
+  # Try nslookup first
+  if command -v timeout >/dev/null 2>&1; then
+    lookup=$(timeout "$TIMEOUT" nslookup "$host" 2>/dev/null || true)
+  else
+    lookup=$(nslookup "$host" 2>/dev/null || true)
+  fi
+  ips=$(printf "%s" "$lookup" | awk '/^Address: /{print $2}' | uniq || true)
+
+  # If no results, fallback to dig
   if [[ -z "$(printf "%s" "$ips" | tr -d '[:space:]')" ]] && command -v dig >/dev/null 2>&1; then
     if [[ "$ip_version" == "4" ]]; then
       if command -v timeout >/dev/null 2>&1; then
@@ -149,7 +141,7 @@ dns_lookup() {
     ips_found="$ips"
   fi
 
-  # normalize to newline-separated list without empty lines
+  # Normalize to newline-separated list without empty lines
   DNS_IPS_FOUND=$(printf "%s\n" "$ips_found" | sed '/^\s*$/d' || true)
   if $DEBUG; then
     echo "[DEBUG] DNS lookup for $host (IPv${ip_version}): $DNS_IPS_FOUND"
@@ -232,7 +224,7 @@ check_and_print() {
       "$status_message" "$CURL_HTTP_CODE" "$url" "${CURL_REMOTE_IP:--}" "$cert_status"
   else
     # Verbose multi-line output similar to http-s_check.sh
-    printf "Resolved IPv%s: %s\n" "${ip_version}" "${CURL_REMOTE_IP:--}"
+    printf "Resolved IPv%s:        %s\n" "${ip_version}" "${CURL_REMOTE_IP:--}"
     printf "HTTP Version:         HTTP/%s\n" "${http_version:--}"
     if [[ -n "${tls_con}" ]]; then
       printf "TLS Connection:       %s\n" "${tls_con}"
