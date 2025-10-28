@@ -30,10 +30,10 @@ jq -c '.[]' "$json_file" | while IFS= read -r entry; do
         ./dns_check_short.sh "$fqdn" ${dns_ip:+$dns_ip}
         ;;
     https)
-        ./http-s_check_short.sh $protocol://$fqdn${port:+:$port}
+        ./http-s_check.sh -s $protocol://$fqdn${port:+:$port}
         ;;
     http)
-        ./http-s_check_short.sh $protocol://$fqdn${port:+:$port}
+        ./http-s_check.sh -s $protocol://$fqdn${port:+:$port}
         ;;
     mqtt)
         #echo $entry # debug logging
