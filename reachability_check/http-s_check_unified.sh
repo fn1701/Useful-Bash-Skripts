@@ -35,6 +35,7 @@ EOF
 MODE=verbose
 IP_FORCED=""  # either 4 or 6 or empty
 TIMEOUT=2
+DEBUG=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -45,6 +46,7 @@ while [[ $# -gt 0 ]]; do
   -t) TIMEOUT="$2"; shift 2 ;;
   --timeout) TIMEOUT="$2"; shift 2 ;;
   --timeout=*) TIMEOUT="${1#*=}"; shift ;;
+  -d|--debug) DEBUG=true; shift ;;
   -h|--help) usage; exit 0 ;;
     --) shift; break ;;
     -*) echo "Unknown option: $1"; usage; exit 2 ;;
@@ -96,9 +98,80 @@ extract_host() {
   echo "${input%%[:/]*}"
 }
 
+# Perform a DNS lookup for a host and IP version within TIMEOUT.
+# Sets DNS_IPS_FOUND to newline-separated matching addresses (may be empty).
+dns_lookup() {
+  local ip_version="$1" host="$2"
+  local lookup ips ips_found
+  DNS_IPS_FOUND=""
+  if command -v getent >/dev/null 2>&1; then
+    if command -v timeout >/dev/null 2>&1; then
+      lookup=$(timeout "$TIMEOUT" getent ahosts "$host" 2>/dev/null || true)
+    else
+      lookup=$(getent ahosts "$host" 2>/dev/null || true)
+    fi
+    ips=$(printf "%s" "$lookup" | awk '{print $1}' | uniq || true)
+  else
+    if command -v timeout >/dev/null 2>&1; then
+      lookup=$(timeout "$TIMEOUT" nslookup "$host" 2>/dev/null || true)
+    else
+      lookup=$(nslookup "$host" 2>/dev/null || true)
+    fi
+    ips=$(printf "%s" "$lookup" | awk '/^Address: /{print $2}' | uniq || true)
+  fi
+
+  # On some systems `getent`/NSS may not return AAAA records even though they exist
+  # try `dig` as a fallback for the requested family when no ips were found
+  if [[ -z "$(printf "%s" "$ips" | tr -d '[:space:]')" ]] && command -v dig >/dev/null 2>&1; then
+    if [[ "$ip_version" == "4" ]]; then
+      if command -v timeout >/dev/null 2>&1; then
+        lookup=$(timeout "$TIMEOUT" dig +short A "$host" 2>/dev/null || true)
+      else
+        lookup=$(dig +short A "$host" 2>/dev/null || true)
+      fi
+    elif [[ "$ip_version" == "6" ]]; then
+      if command -v timeout >/dev/null 2>&1; then
+        lookup=$(timeout "$TIMEOUT" dig +short AAAA "$host" 2>/dev/null || true)
+      else
+        lookup=$(dig +short AAAA "$host" 2>/dev/null || true)
+      fi
+    fi
+    ips=$(printf "%s" "$lookup" | sed '/^\s*$/d' || true)
+  fi
+
+  if [[ -n "$ip_version" ]]; then
+    if [[ "$ip_version" == "4" ]]; then
+      ips_found=$(printf "%s\n" "$ips" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' || true)
+    else
+      ips_found=$(printf "%s\n" "$ips" | grep -E ':' || true)
+    fi
+  else
+    ips_found="$ips"
+  fi
+
+  # normalize to newline-separated list without empty lines
+  DNS_IPS_FOUND=$(printf "%s\n" "$ips_found" | sed '/^\s*$/d' || true)
+  if $DEBUG; then
+    echo "[DEBUG] DNS lookup for $host (IPv${ip_version}): $DNS_IPS_FOUND"
+  fi
+}
+
 # run curl for a given IP version and return values via globals
 perform_curl() {
   local ip_version="$1" url="$2"
+  # Only lookup the provided ip_version (fail fast if no record found within TIMEOUT)
+  local host
+  host=$(extract_host "$url")
+  dns_lookup "$ip_version" "$host"
+  if [[ -z "$(printf "%s" "$DNS_IPS_FOUND" | tr -d '[:space:]')" ]]; then
+    # No DNS records found within timeout for requested IP version
+    echo -e "${RED}${BOLD}DNS:${NC} No ${ip_version:+IPv${ip_version} }address for ${host} found within ${TIMEOUT}s" >&2
+    CURL_OUTPUT=""
+    CURL_HTTP_CODE="000"
+    CURL_EFFECTIVE_URL=""
+    return 1
+  fi
+
   # Choose -4/-6 flag if ip_version present
   local flag=""
   if [[ -n "$ip_version" ]]; then
@@ -106,12 +179,18 @@ perform_curl() {
   fi
 
   # verbose (curl -v) output captured; final status line captured by -w
-  output=$(curl -L $flag -s -o /dev/null -w "%{http_code} %{url_effective}" -v --connect-timeout "$TIMEOUT" "$url" 2>&1)
+  output=$(curl -http3 -L $flag -s -o /dev/null -w "%{http_code} %{url_effective}" -v --connect-timeout "$TIMEOUT" "$url" 2>&1)
+  if $DEBUG; then
+    echo "[DEBUG] curl output: $output"
+  fi
   read -r http_code url_effective <<< "$(echo "$output" | tail -n1)"
 
   # If connection failed (000), retry with -k to ignore cert problems and capture
   if [[ "$http_code" = "000" ]]; then
-  output=$(curl -k -L $flag -s -o /dev/null -w "%{http_code} %{url_effective}" -v --connect-timeout "$TIMEOUT" "$url" 2>&1)
+    output=$(curl -http3 -k -L $flag -s -o /dev/null -w "%{http_code} %{url_effective}" -v --connect-timeout "$TIMEOUT" "$url" 2>&1)
+    if $DEBUG; then
+      echo "[DEBUG] curl retry output: $output"
+    fi
     read -r http_code url_effective <<< "$(echo "$output" | tail -n1)"
   fi
 
@@ -119,11 +198,16 @@ perform_curl() {
   CURL_OUTPUT="$output"
   CURL_HTTP_CODE="$http_code"
   CURL_EFFECTIVE_URL="$url_effective"
+  return 0
 }
 
 check_and_print() {
   local ip_version="$1" url="$2" mode="$3"
   perform_curl "$ip_version" "$url"
+  # If perform_curl returned non-zero, propagate failure to caller
+  if [[ $? -ne 0 ]]; then
+    return 1
+  fi
 
   # Try to extract resolved IP and TLS info
   resolved_ip=$(echo "$CURL_OUTPUT" | grep -oP "IPv${ip_version}:\s+\K([0-9a-fA-F:.]{7,39})" | head -1 || true)
