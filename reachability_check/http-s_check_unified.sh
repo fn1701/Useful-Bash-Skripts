@@ -179,25 +179,26 @@ perform_curl() {
   fi
 
   # verbose (curl -v) output captured; final status line captured by -w
-  output=$(curl -http3 -L $flag -s -o /dev/null -w "%{http_code} %{url_effective}" -v --connect-timeout "$TIMEOUT" "$url" 2>&1)
+  output=$(curl --http3 -L $flag -s -o /dev/null -w "%{http_code} %{url_effective} %{remote_ip}" -v --connect-timeout "$TIMEOUT" "$url" 2>&1)
   if $DEBUG; then
     echo "[DEBUG] curl output: $output"
   fi
-  read -r http_code url_effective <<< "$(echo "$output" | tail -n1)"
+  read -r http_code url_effective remote_ip <<< "$(echo "$output" | tail -n1)"
 
   # If connection failed (000), retry with -k to ignore cert problems and capture
   if [[ "$http_code" = "000" ]]; then
-    output=$(curl -http3 -k -L $flag -s -o /dev/null -w "%{http_code} %{url_effective}" -v --connect-timeout "$TIMEOUT" "$url" 2>&1)
+    output=$(curl --http3 -k -L $flag -s -o /dev/null -w "%{http_code} %{url_effective} %{remote_ip}" -v --connect-timeout "$TIMEOUT" "$url" 2>&1)
     if $DEBUG; then
       echo "[DEBUG] curl retry output: $output"
     fi
-    read -r http_code url_effective <<< "$(echo "$output" | tail -n1)"
+    read -r http_code url_effective remote_ip <<< "$(echo "$output" | tail -n1)"
   fi
 
   # Exported globals
   CURL_OUTPUT="$output"
   CURL_HTTP_CODE="$http_code"
   CURL_EFFECTIVE_URL="$url_effective"
+  CURL_REMOTE_IP="$remote_ip"
   return 0
 }
 
@@ -210,10 +211,15 @@ check_and_print() {
   fi
 
   # Try to extract resolved IP and TLS info
-  resolved_ip=$(echo "$CURL_OUTPUT" | grep -oP "IPv${ip_version}:\s+\K([0-9a-fA-F:.]{7,39})" | head -1 || true)
   tls_info=$(echo "$CURL_OUTPUT" | grep -oP 'SSL connection using \K.*' | head -1 || true)
   cert_status=$(get_cert_status "$CURL_OUTPUT")
-
+  cert_key_type=$(echo "$CURL_OUTPUT" | grep 'Certificate level' | tail -1 | cut -d ' ' -f10,11,12)
+  # Rewrite the http_version extraction logic as an if-else block
+  if echo "$CURL_OUTPUT" | grep -q 'using HTTP/3'; then
+    http_version="3"
+  else
+    http_version=$(echo "$CURL_OUTPUT" | grep -oP 'Using HTTP/\K[0-9.]+' | head -1 || true)
+  fi
   status_message=$(get_status_message "$CURL_HTTP_CODE")
   color=$(get_status_color "$CURL_HTTP_CODE")
 
@@ -222,12 +228,13 @@ check_and_print() {
     # Print: [STATUS] <code>  <url>  <resolved_ip padded> <CertStatus> Cert
     # Pad the IP column to align the certificate status column for IPv4/IPv6
     printf "[${color}${BOLD}%s${NC}] %s  %s  %-39s %s Cert\n" \
-      "$status_message" "$CURL_HTTP_CODE" "$url" "${resolved_ip:--}" "$cert_status"
+      "$status_message" "$CURL_HTTP_CODE" "$url" "${CURL_REMOTE_IP:--}" "$cert_status"
   else
     # Verbose multi-line output similar to http-s_check.sh
-    echo -e "Resolved IPv${ip_version}:      ${resolved_ip:--}"
+    echo -e "Resolved IPv${ip_version}:      ${CURL_REMOTE_IP:--}"
     echo -e "TLS Info:           ${tls_info:--}"
-    echo -e "Certificate:        ${cert_status}"
+    echo -e "HTTP Version:      HTTP/${http_version:--}"
+    echo -e "Certificate:        ${cert_status} ${cert_key_type}"
     echo -e "Effective URL:      ${CURL_EFFECTIVE_URL:--}"
     echo -e "Final HTTP Code:    ${CURL_HTTP_CODE} [${color}${BOLD}${status_message}${NC}]\n"
   fi
