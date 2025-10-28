@@ -1,17 +1,49 @@
 #!/bin/bash
 
 # Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+CONFIG_FILE="./color.conf"
+if [ -f "$CONFIG_FILE" ]; then
+  # shellcheck source=./color.conf
+  source "$CONFIG_FILE"
+else
+  echo "$CONFIG_FILE file not found!" >&2
+  exit 1
+fi
 
-# Text Style
-NORMAL='\033[0m'
-BOLD='\033[1m'
-DIM='\033[2m'
-ITALIC='\033[3m'
-UNDERLINE='\033[4m'
+usage() {
+  cat <<EOF
+Usage: $0 [OPTIONS] <json_file>
+
+Options:
+  -s, --short        Short, one-line output
+  -v, --verbose      Verbose multi-line output (default)
+  -h, --help         Show this help
+
+Examples:
+  $0 -s input.json
+  $0 -v input.json
+EOF
+}
+
+# Default mode
+mode="verbose"
+
+# Parse options
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -s|--short) mode="short"; shift ;;
+    -v|--verbose) mode="verbose"; shift ;;
+    -h|--help) usage; exit 0 ;;
+    --) shift; break ;;
+    -*) echo -e "${RED}Unknown option: $1${NC}"; usage; exit 2 ;;
+    *) break ;;
+  esac
+done
+
+if [[ $# -lt 1 ]]; then
+  usage
+  exit 1
+fi
 
 # Path to your JSON file
 json_file="$1"
@@ -27,33 +59,55 @@ jq -c '.[]' "$json_file" | while IFS= read -r entry; do
 
     case "$protocol" in
     dns)
-        ./dns_check.sh "$fqdn" ${dns_ip:+$dns_ip}
+        if [[ "$mode" == "short" ]]; then
+            ./dns_check_short.sh "$fqdn" ${dns_ip:+$dns_ip}
+        else
+            ./dns_check.sh "$fqdn" ${dns_ip:+$dns_ip}
+        fi
         ;;
-    https)
-        ./http-s_check.sh $protocol://$fqdn${port:+:$port}
-        ;;
-    http)
-        ./http-s_check.sh $protocol://$fqdn${port:+:$port}
+    https|http)
+        if [[ "$mode" == "short" ]]; then
+            ./http-s_check.sh -s $protocol://$fqdn${port:+:$port}
+        else
+            ./http-s_check.sh $protocol://$fqdn${port:+:$port}
+        fi
         ;;
     mqtt)
-        #echo $entry # debug logging
-        ./mqtt-s_check.sh "$entry"
+        if [[ "$mode" == "short" ]]; then
+            ./mqtt-s_check_short.sh "$entry"
+        else
+            ./mqtt-s_check.sh "$entry"
+        fi
         ;;
     ssh)
         if [[ -z "$ipv" ]]; then
-            ./ssh_check.sh "${user}" "${fqdn}" "${port:+$port}" "4"
-            echo ""
-            ./ssh_check.sh "${user}" "${fqdn}" "${port:+$port}" "6"
+            if [[ "$mode" == "short" ]]; then
+                ./ssh_check_short.sh "${user}" "${fqdn}" "${port:+$port}" "4"
+                echo ""
+                ./ssh_check_short.sh "${user}" "${fqdn}" "${port:+$port}" "6"
+            else
+                ./ssh_check.sh "${user}" "${fqdn}" "${port:+$port}" "4"
+                echo ""
+                ./ssh_check.sh "${user}" "${fqdn}" "${port:+$port}" "6"
+            fi
         elif [[ "$ipv" == "4" ]]; then
-            ./ssh_check.sh "${user}" "${fqdn}" "${port:+$port}" "4"
+            if [[ "$mode" == "short" ]]; then
+                ./ssh_check_short.sh "${user}" "${fqdn}" "${port:+$port}" "4"
+            else
+                ./ssh_check.sh "${user}" "${fqdn}" "${port:+$port}" "4"
+            fi
         elif [[ "$ipv" == "6" ]]; then
-            ./ssh_check.sh "${user}" "${fqdn}" "${port:+$port}" "6"
+            if [[ "$mode" == "short" ]]; then
+                ./ssh_check_short.sh "${user}" "${fqdn}" "${port:+$port}" "6"
+            else
+                ./ssh_check.sh "${user}" "${fqdn}" "${port:+$port}" "6"
+            fi
         else
-            echo -e "-> Unknown IPv version: $ipv"
+            echo -e "${RED}-> Unknown IPv version: $ipv${NC}"
         fi
         ;;
     *)
-        echo "-> Unknown protocol: $protocol"
+        echo -e "${RED}-> Unknown protocol: $protocol${NC}"
         ;;
     esac
 
