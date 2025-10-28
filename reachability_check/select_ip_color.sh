@@ -1,6 +1,10 @@
 #!/bin/bash
 
-CONFIG_FILE="./color.conf"
+# Determine the script's directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}" )" && pwd)"
+
+# Colors for output
+CONFIG_FILE="$SCRIPT_DIR/color.conf"
 if [ -f "$CONFIG_FILE" ]; then
     # shellcheck source=./color.conf
     source "$CONFIG_FILE"

@@ -6,7 +6,11 @@
 # Exit on unset vars only (avoid -e to allow curl failures to be handled)
 set -u
 
-CONFIG_FILE="./color.conf"
+# Determine the script's directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}" )" && pwd)"
+
+# Colors for output
+CONFIG_FILE="$SCRIPT_DIR/color.conf"
 if [ -f "$CONFIG_FILE" ]; then
   # shellcheck source=./color.conf
   source "$CONFIG_FILE"
@@ -216,7 +220,7 @@ check_and_print() {
   status_message=$(get_status_message "$CURL_HTTP_CODE")
 
   http_color=$(get_status_color "$CURL_HTTP_CODE")
-  ip_color=$(./select_ip_color.sh "$ip_version")
+  ip_color=$($SCRIPT_DIR/select_ip_color.sh "$ip_version")
 
 
   if [[ "$mode" = "short" ]]; then

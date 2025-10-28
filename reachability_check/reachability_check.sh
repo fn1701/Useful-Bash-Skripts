@@ -1,7 +1,10 @@
 #!/bin/bash
 
+# Determine the script's directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}" )" && pwd)"
+
 # Colors for output
-CONFIG_FILE="./color.conf"
+CONFIG_FILE="$SCRIPT_DIR/color.conf"
 if [ -f "$CONFIG_FILE" ]; then
   # shellcheck source=./color.conf
   source "$CONFIG_FILE"
@@ -60,47 +63,47 @@ jq -c '.[]' "$json_file" | while IFS= read -r entry; do
     case "$protocol" in
     dns)
         if [[ "$mode" == "short" ]]; then
-            ./dns_check_short.sh "$fqdn" ${dns_ip:+$dns_ip}
+            "$SCRIPT_DIR/dns_check_short.sh" "$fqdn" ${dns_ip:+$dns_ip}
         else
-            ./dns_check.sh "$fqdn" ${dns_ip:+$dns_ip}
+            "$SCRIPT_DIR/dns_check.sh" "$fqdn" ${dns_ip:+$dns_ip}
         fi
         ;;
     https|http)
         if [[ "$mode" == "short" ]]; then
-            ./http-s_check.sh -s $protocol://$fqdn${port:+:$port}
+            "$SCRIPT_DIR/http-s_check.sh" -s $protocol://$fqdn${port:+:$port}
         else
-            ./http-s_check.sh $protocol://$fqdn${port:+:$port}
+            "$SCRIPT_DIR/http-s_check.sh" $protocol://$fqdn${port:+:$port}
         fi
         ;;
     mqtt)
         if [[ "$mode" == "short" ]]; then
-            ./mqtt-s_check_short.sh "$entry"
+            "$SCRIPT_DIR/mqtt-s_check_short.sh" "$entry"
         else
-            ./mqtt-s_check.sh "$entry"
+            "$SCRIPT_DIR/mqtt-s_check.sh" "$entry"
         fi
         ;;
     ssh)
         if [[ -z "$ipv" ]]; then
             if [[ "$mode" == "short" ]]; then
-                ./ssh_check.sh -s "${user}" "${fqdn}" "${port:+$port}" "4"
+                "$SCRIPT_DIR/ssh_check.sh" -s "${user}" "${fqdn}" "${port:+$port}" "4"
                 echo ""
-                ./ssh_check.sh -s "${user}" "${fqdn}" "${port:+$port}" "6"
+                "$SCRIPT_DIR/ssh_check.sh" -s "${user}" "${fqdn}" "${port:+$port}" "6"
             else
-                ./ssh_check.sh "${user}" "${fqdn}" "${port:+$port}" "4"
+                "$SCRIPT_DIR/ssh_check.sh" "${user}" "${fqdn}" "${port:+$port}" "4"
                 echo ""
-                ./ssh_check.sh "${user}" "${fqdn}" "${port:+$port}" "6"
+                "$SCRIPT_DIR/ssh_check.sh" "${user}" "${fqdn}" "${port:+$port}" "6"
             fi
         elif [[ "$ipv" == "4" ]]; then
             if [[ "$mode" == "short" ]]; then
-                ./ssh_check.sh -s "${user}" "${fqdn}" "${port:+$port}" "4"
+                "$SCRIPT_DIR/ssh_check.sh" -s "${user}" "${fqdn}" "${port:+$port}" "4"
             else
-                ./ssh_check.sh "${user}" "${fqdn}" "${port:+$port}" "4"
+                "$SCRIPT_DIR/ssh_check.sh" "${user}" "${fqdn}" "${port:+$port}" "4"
             fi
         elif [[ "$ipv" == "6" ]]; then
             if [[ "$mode" == "short" ]]; then
-                ./ssh_check.sh -s "${user}" "${fqdn}" "${port:+$port}" "6"
+                "$SCRIPT_DIR/ssh_check.sh" -s "${user}" "${fqdn}" "${port:+$port}" "6"
             else
-                ./ssh_check.sh "${user}" "${fqdn}" "${port:+$port}" "6"
+                "$SCRIPT_DIR/ssh_check.sh" "${user}" "${fqdn}" "${port:+$port}" "6"
             fi
         else
             echo -e "${RED}-> Unknown IPv version: $ipv${NC}"

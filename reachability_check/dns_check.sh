@@ -1,17 +1,17 @@
 #!/bin/bash
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+# Determine the script's directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}" )" && pwd)"
 
-# Text Style
-NORMAL='\033[0m'
-BOLD='\033[1m'
-DIM='\033[2m'
-ITALIC='\033[3m'
-UNDERLINE='\033[4m'
+# Colors for output
+CONFIG_FILE="$SCRIPT_DIR/color.conf"
+if [ -f "$CONFIG_FILE" ]; then
+  # shellcheck source=./color.conf
+  source "$CONFIG_FILE"
+else
+  echo "$CONFIG_FILE file not found!" >&2
+  exit 1
+fi
 
 domain="$1"
 dns_ip="$2"
