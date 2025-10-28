@@ -82,9 +82,9 @@ jq -c '.[]' "$json_file" | while IFS= read -r entry; do
     ssh)
         if [[ -z "$ipv" ]]; then
             if [[ "$mode" == "short" ]]; then
-                ./ssh_check_short.sh "${user}" "${fqdn}" "${port:+$port}" "4"
+                ./ssh_check.sh -s "${user}" "${fqdn}" "${port:+$port}" "4"
                 echo ""
-                ./ssh_check_short.sh "${user}" "${fqdn}" "${port:+$port}" "6"
+                ./ssh_check.sh -s "${user}" "${fqdn}" "${port:+$port}" "6"
             else
                 ./ssh_check.sh "${user}" "${fqdn}" "${port:+$port}" "4"
                 echo ""
@@ -92,13 +92,13 @@ jq -c '.[]' "$json_file" | while IFS= read -r entry; do
             fi
         elif [[ "$ipv" == "4" ]]; then
             if [[ "$mode" == "short" ]]; then
-                ./ssh_check_short.sh "${user}" "${fqdn}" "${port:+$port}" "4"
+                ./ssh_check.sh -s "${user}" "${fqdn}" "${port:+$port}" "4"
             else
                 ./ssh_check.sh "${user}" "${fqdn}" "${port:+$port}" "4"
             fi
         elif [[ "$ipv" == "6" ]]; then
             if [[ "$mode" == "short" ]]; then
-                ./ssh_check_short.sh "${user}" "${fqdn}" "${port:+$port}" "6"
+                ./ssh_check.sh -s "${user}" "${fqdn}" "${port:+$port}" "6"
             else
                 ./ssh_check.sh "${user}" "${fqdn}" "${port:+$port}" "6"
             fi
